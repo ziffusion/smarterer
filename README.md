@@ -1,112 +1,202 @@
-# VocaliD
+# Smarterer
 
 1. [Install](#install)
+1. [Logs](#logs)
+1. [Test](#test)
 1. [Run](#run)
-1. [Work](#work)
-1. [Wiki](https://github.com/vocalid/vocalid/wiki)
+1. [Endpoints](#endpoints)
 
 ## Install
 
-### git
----
+### Get code base
 
-    sudo apt-get -y install git
+    git clone https://github.com/ziffusion/smarterer.git
 
-### GPG key
----
+### Software map
 
-We use gpg to protect some sensitive data. You will need to generate a gpg key pair.
+    smarterer/config    config files
+    smarterer/logs      log files
+    smarterer/run       run directory
+    smarterer/server    flask webapp, endpoints
+    smarterer/tests     unit tests
 
-#### EITHER: Export and then import an already distributed key pair
+### Establish a virtual environment (optional)
 
-    gpg --list-keys
+### Install dependencies
 
-It will display the key-id for the public key as follows.
+    cd smarterer/config
 
-    pub <some-code>/<key-id> <date>
+    pip install -r REQUIREMENTS.TXT
 
-You need the key-id for the public key.
+### Change configuration (optional)
 
-Export a key pair.
+    cd smarterer/config
 
-    gpg --export -a <key-id> > <email>.pub
-    gpg --export-secret-keys -a <key-id> > <email>
+    vi system.py            # change base values
 
-Import a key pair.
+    -OR-
 
-    gpg --import <email> <email>.pub
+    vi system-custom.py     # override base values
 
-#### OR: Generate a new key pair and distribute it
+## Logs
 
-    gpg --gen-key
+    cd smarterer/logs
 
-It will display the key-id for the public key as follows.
+    tail -f system.log
 
-    pub <some-code>/<key-id> <date>
+## Test
 
-You need the key-id for the public key.
+    cd smarterer/tests
 
-##### Distribute the public key
+    python -m unittest test_server
 
-    gpg --keyserver hkps.pool.sks-keyservers.net --send-keys <key-id>
+    -OR-
 
-Send the key-id by to the project lead as well.
-
-The project lead will add your key to authorized.txt, and re-encrypt.
-
-Proceed with the following **after** the project lead has done that.
-
-### Code base
----
-
-#### Get code base
-
-    git clone https://github.com/vocalid/vocalid.git
-
-#### Install on a developer machine
-
-    cd vocalid/config
-
-    bash setup.sh install
-
-#### Install on an environment machine
-
-    cd vocalid/config
-
-    bash setup.sh -e prod|stage|test install
-
-#### Customize config
-
-Create environment-custom.py and system-custom.py to override any config.
+    python -m unittest discover
 
 ## Run
 
-#### Under Apache
-
-    service apache2 restart
-
-#### Under Gunicorn
-
-    cd vocalid/run
-
-    gunicorn -c gunicorn.py wsgi:application
-
-#### Under Flask
-
-    cd vocalid/run
+    cd smarterer/run
 
     python wsgi.py
 
-## Work
+## Endpoints
 
-#### To checkout secrets.py
+The application implements a single endpoint that supports various REST operations.
 
-    cd vocalid/config
+The endpoints consume and produce json objects.
 
-    bash setup.sh secrets.checkout
+The object in play is the question object, which has the following fields:
 
-#### To checkin secrets.py
+    question.id             unique object identifier
+    question.n0             operand-1
+    question.n1             operand-2
+    question.n2             answer
+    question.op             operator + - * /
+    question.distractors    list of alternative answers
 
-    cd vocalid/config
+### CREATE a question
 
-    bash setup.sh secrets.checkin
+    PUT /question
+
+json input example:
+
+    {
+        "distractors": [
+            5, 
+            6, 
+            7
+        ], 
+        "n0": 1, 
+        "n1": 2, 
+        "n2": 3, 
+        "op": "+", 
+        "object": "ApiObject"
+    }
+
+The id of the newly created object is returned.
+
+json output example:
+
+    {
+        "code": 200, 
+        "msg": "OK", 
+        "object": "ApiObject", 
+        "question": {
+            "distractors": [
+                5, 
+                6, 
+                7
+            ], 
+            "id": 2, 
+            "n0": 1, 
+            "n1": 2, 
+            "n2": 3, 
+            "op": "+", 
+            "object": "ApiObject"
+        }
+    }
+
+### READ a question
+
+    GET /question/<id>
+
+json output similar to CREATE above.
+
+### READ question list
+
+    GET /question?where=<clause>&sort=<clause>&start=<number>&limit=<number>
+
+The where clause is specified using a DSL that supports following operators against any of the fields.
+
+    ==  equal to
+    !=  not equal to
+    >   greater than
+    >=  greater than equal to
+    <   less than
+    <=  less than equal to
+    ||  in
+    &&  and
+
+Example of where clause:
+
+    n0 > 3008 && n1 <= 500 && op || * + - && n2 > 5000 && n0 || 7546 6345 9800
+
+The sort clause specifies list of columns to sort by.
+
+Example of sort clause:
+
+    n1 op n0
+
+The start and limit clauses control pagination of results.
+
+json output example:
+
+    {
+        "code": 200, 
+        "limit": 2, 
+        "msg": "OK", 
+        "object": "ApiObject", 
+        "questions": [
+            {
+                "distractors": [
+                    3572, 
+                    8772, 
+                    9415
+                ], 
+                "id": 2, 
+                "n0": 3009, 
+                "n1": 5075, 
+                "n2": 15270675, 
+                "op": "*", 
+                "object": "ApiObject"
+            }, 
+            {
+                "distractors": [
+                    7360, 
+                    2043, 
+                    2982, 
+                    1235
+                ], 
+                "id": 3, 
+                "n0": 9702, 
+                "n1": 9102, 
+                "n2": 600, 
+                "op": "-", 
+                "object": "ApiObject"
+            }
+        ], 
+        "sort": "op", 
+        "start": 2, 
+        "where": "n0 > 500"
+    }
+
+### UPDATE a question
+
+    POST /question/<id>
+
+json input similar to CREATE above.
+
+### DELETE a question
+
+    DELETE /question/<id>
